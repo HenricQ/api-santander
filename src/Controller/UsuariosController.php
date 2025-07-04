@@ -3,7 +3,9 @@
 namespace App\Controller;
 
 use App\Entity\Usuario;
+use App\Entity\Conta;
 use App\Repository\UsuarioRepository;
+use App\Repository\ContaRepository;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Dom\Entity;
@@ -11,7 +13,8 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
-use UsuarioDto;
+use App\Dto\UsuarioDto;
+use App\Dto\UsuarioContaDto;
 
 #[Route('/api')]
 final class UsuariosController extends AbstractController
@@ -20,6 +23,7 @@ final class UsuariosController extends AbstractController
     public function criar(
         #[MapRequestPayload(acceptFormat: 'json')]
         UsuarioDto $usuarioDto,
+        // UsuarioContaDto $usuarioContaDto,
 
         EntityManagerInterface $entityManager,
         UsuarioRepository $usuarioRepository
@@ -66,8 +70,50 @@ final class UsuariosController extends AbstractController
 
         // cria o registro no banco de dados
         $entityManager->persist($usuario);
+        
+        $conta = new Conta();
+        $conta->setNumero(preg_replace('/\D/', '', uniqid()));
+        $conta->setSaldo('0');
+        $conta->setUsuario($usuario);
+        
+        $entityManager->persist($conta);
         $entityManager->flush();
 
-        return $this->json($usuario);
+        $usuarioContaDto = new UsuarioContaDto();
+        $usuarioContaDto->setId($usuario->getId());
+        $usuarioContaDto->setNome($usuario->getNome());
+        $usuarioContaDto->setEmail($usuario->getEmail());
+        $usuarioContaDto->setTelefone($usuario->getTelefone());
+        $usuarioContaDto->setCpf($usuario->getCpf());
+        $usuarioContaDto->setNumeroConta($conta->getNumero());  
+        $usuarioContaDto->setSaldo($conta->getSaldo());
+        
+        return $this->json($usuarioContaDto, 201);
+    }
+
+
+    #[Route('/usuarios/{id}', name: 'usuarios_buscar', methods: ['GET'])]
+    public function buscarPorId(
+        int $id,
+        ContaRepository $contaRepository
+    ) {
+        $conta = $contaRepository->findByUsuarioId($id);
+
+        if(!$conta) {
+            return $this->json([
+                'message' => 'Conta não encontrada!'
+            ], 404);
+        }
+
+        $usuarioContaDto = new UsuarioContaDto();
+        $usuarioContaDto->setId($conta->getUsuario()->getId());
+        $usuarioContaDto->setNome($conta->getUsuario()->getNome());
+        $usuarioContaDto->setEmail($conta->getUsuario()->getEmail());
+        $usuarioContaDto->setTelefone($conta->getUsuario()->getTelefone());
+        $usuarioContaDto->setCpf($conta->getUsuario()->getCpf());
+        $usuarioContaDto->setNumeroConta($conta->getNumero());
+        $usuarioContaDto->setSaldo($conta->getSaldo());
+
+        return $this->json($usuarioContaDto, 200);
     }
 }
